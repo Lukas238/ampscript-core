@@ -48,7 +48,9 @@ namespace Sage.Engine.Runtime
             {
                 if (string.Compare("date", compareType, StringComparison.InvariantCultureIgnoreCase) == 0)
                 {
-                    return SageValue.ToString(SageValue.ToDateTime(subject.ToString(), this._currentCulture, DateTimeStyles.AssumeLocal), formatString, cultureInfo);
+                    // Pass subject directly (not subject.ToString()) - stringifying first loses type info and
+                    // forces a lossy round-trip through the default culture before re-parsing.
+                    return SageValue.ToString(SageValue.ToDateTime(subject, this._currentCulture, DateTimeStyles.AssumeLocal), formatString, cultureInfo);
                 }
 
                 if (string.Compare("numeric", compareType, StringComparison.InvariantCultureIgnoreCase) == 0)

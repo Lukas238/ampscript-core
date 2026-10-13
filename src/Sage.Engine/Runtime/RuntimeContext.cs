@@ -6,6 +6,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Sage.Engine.Compiler;
 using Sage.Engine.Content;
 using Sage.Engine.Data;
@@ -33,6 +34,7 @@ namespace Sage.Engine.Runtime
         private readonly CompilationOptions _rootCompilationOptions;
         private readonly Stack<StackFrame> _stackFrame = new();
         private readonly SubscriberContext _subscriberContext;
+        private readonly CustomFunctionRegistry _customFunctions;
 
         private readonly Dictionary<string, SageVariable> _variables = new();
 
@@ -51,6 +53,7 @@ namespace Sage.Engine.Runtime
             _dataExtensionClient.ConnectAsync().Wait();
             
             _subscriberContext = subscriberContext ?? new SubscriberContext(null);
+            _customFunctions = new CustomFunctionRegistry(provider.GetService<IOptions<SageOptions>>()?.Value.WorkingPath);
 
             _stackFrame.Push(new StackFrame(_rootCompilationOptions.GeneratedMethodName, _rootCompilationOptions.Content));
         }

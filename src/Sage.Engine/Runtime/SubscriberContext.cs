@@ -42,7 +42,9 @@ namespace Sage.Engine.Runtime
                 return $"%%{attributeName}%%";
             }
 
-            return result;
+            // Unwrap the JsonNode to a plain string so downstream numeric/date parsing (SageValue) works -
+            // JsonNode.ToString() returns the raw value without JSON-quoting, unlike ToJsonString().
+            return result.ToString();
         }
 
         /// <summary>

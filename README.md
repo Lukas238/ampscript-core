@@ -110,6 +110,31 @@ Outputs:
 Hello Donnie
 ```
 
+## Custom Functions
+
+If your AMPscript calls a function this engine doesn't natively support, compilation fails with a clear error instead of crashing - but you can patch that function locally with a `custom-functions.json` file in the working directory (next to your entry `.ampscript` file).
+
+Each entry is keyed by the AMPscript function name (case-insensitive) and supports three modes:
+
+- `"return"`: always returns this fixed literal value.
+- `"echoArgument"`: returns one of the call's arguments (by zero-based index) unchanged.
+- `"parameters"` + `"csharp"`: a real C# method body, compiled once at startup, with access to the named parameters, `context` (the current `RuntimeContext`), and `SageValue` conversion helpers - for actually implementing the function instead of stubbing it.
+
+Example `custom-functions.json`:
+
+```json
+{
+  "FORMATDATE": { "return": "2026-01-01" },
+  "ENCRYPTSYMMETRIC": { "echoArgument": 0 },
+  "DATEADD": {
+    "parameters": ["date", "interval", "part"],
+    "csharp": "var d = SageValue.ToDateTime(date, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal); return d.AddDays((double)SageValue.ToDecimal(interval)).ToString(\"yyyy-MM-dd\");"
+  }
+}
+```
+
+Functions that are already natively implemented always take priority over a `custom-functions.json` entry of the same name.
+
 ### ⚠️ AMPscript Support
 
 | Feature                                             | Summary              |

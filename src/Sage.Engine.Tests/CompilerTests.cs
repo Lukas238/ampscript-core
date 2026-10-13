@@ -59,5 +59,74 @@ namespace Sage.Engine.Tests
 
             Assert.That(result, Is.EqualTo(expected));
         }
+
+        [Test]
+        [TestCase("DATEADD", "{ \"DATEADD\": { \"echoArgument\": 0 } }", "%%=DATEADD(\"hi\",1,\"D\")=%%", "hi")]
+        [TestCase("FORMATDATE", "{ \"FORMATDATE\": { \"return\": \"2026-01-01\" } }", "%%=FORMATDATE(NOW())=%%", "2026-01-01")]
+        public void TestCustomFunctionStub(string functionName, string customFunctionsJson, string input, string expected)
+        {
+            string jsonPath = Path.Combine(TestContext.CurrentContext.TestDirectory, CustomFunctionRegistry.FileName);
+            File.WriteAllText(jsonPath, customFunctionsJson);
+            try
+            {
+                var content = new EmbeddedContent(input, "TEST", "TEST", 1, ContentType.AMPscript);
+                CompilationOptions options = new CompilerOptionsBuilder().WithContent(content).Build();
+                var result = _serviceProvider.GetRequiredService<Renderer>().Render(options);
+                Assert.That(result, Is.EqualTo(expected));
+            }
+            finally
+            {
+                File.Delete(jsonPath);
+            }
+        }
+
+        [Test]
+        public void TestUndefinedCustomFunctionThrows()
+        {
+            var content = new EmbeddedContent("%%=SOMEUNSUPPORTEDFUNCTION(1)=%%", "TEST", "TEST", 1, ContentType.AMPscript);
+            CompilationOptions options = new CompilerOptionsBuilder().WithContent(content).Build();
+
+            Assert.Throws<RuntimeException>(() => _serviceProvider.GetRequiredService<Renderer>().Render(options));
+        }
+
+        [Test]
+        public void TestCustomFunctionCSharpBody()
+        {
+            string customFunctionsJson = """
+            {
+              "DATEADD": {
+                "parameters": ["date", "interval", "part"],
+                "csharp": "var d = SageValue.ToDateTime(date, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal); return d.AddDays((double)SageValue.ToDecimal(interval)).ToString(\"yyyy-MM-dd\");"
+              }
+            }
+            """;
+            string jsonPath = Path.Combine(TestContext.CurrentContext.TestDirectory, CustomFunctionRegistry.FileName);
+            File.WriteAllText(jsonPath, customFunctionsJson);
+            try
+            {
+                var content = new EmbeddedContent("%%=DATEADD(\"2026-01-01\",5,\"D\")=%%", "TEST", "TEST", 1, ContentType.AMPscript);
+                CompilationOptions options = new CompilerOptionsBuilder().WithContent(content).Build();
+                var result = _serviceProvider.GetRequiredService<Renderer>().Render(options);
+                Assert.That(result, Is.EqualTo("2026-01-06"));
+            }
+            finally
+            {
+                File.Delete(jsonPath);
+            }
+        }
+
+        [Test]
+        [TestCase("\"2026-06-27\"", "MMMM&nb\\sp;d,&nb\\sp;yyyy", "en", "June&nbsp;27,&nbsp;2026")]
+        [TestCase("DATEPARSE(\"2026-06-27\", true)", "MM/dd/yyyy", "en", "06/27/2026")]
+        public void TestFormatDate(string dateExpression, string formatString, string culture, string expected)
+        {
+            var content = new EmbeddedContent(
+                $"%%=Format({dateExpression}, \"{formatString}\", \"Date\", \"{culture}\")=%%",
+                "TEST", "TEST", 1, ContentType.AMPscript);
+            CompilationOptions options = new CompilerOptionsBuilder().WithContent(content).Build();
+            var result = _serviceProvider.GetRequiredService<Renderer>().Render(options);
+            Assert.That(result, Is.EqualTo(expected));
+        }
     }
 }
+

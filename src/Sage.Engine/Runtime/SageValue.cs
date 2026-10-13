@@ -43,6 +43,13 @@ namespace Sage.Engine.Runtime
         {
             value = UnboxVariable(value);
 
+            // Format an already-resolved DateTimeOffset directly - routing it back through TryToDateTime would
+            // reproject it to a different timezone, shifting the value.
+            if (value is DateTimeOffset existingDateTimeOffset)
+            {
+                return existingDateTimeOffset.ToString(formatString, cultureInfo);
+            }
+
             // A DateTime from a string is not success here.
             if (TryToDateTime(value, cultureInfo, DateTimeStyles.AssumeLocal, out DateTimeOffset date) ==
                 UnboxResult.Succeed)
@@ -342,6 +349,14 @@ namespace Sage.Engine.Runtime
                 result = dateTimeObj;
 
                 result = TimeZoneInfo.ConvertTime(result, _timezoneConversion.Value);
+                return UnboxResult.Succeed;
+            }
+
+            // A plain DateTime (e.g. from DATEPARSE) must be handled explicitly too - otherwise it falls through
+            // to ToString()/re-parse below, which is lossy and culture-dependent.
+            if (inputObj is DateTime dateTimeVal)
+            {
+                result = dateTimeVal;
                 return UnboxResult.Succeed;
             }
 

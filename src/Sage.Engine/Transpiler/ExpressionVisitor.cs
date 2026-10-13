@@ -7,6 +7,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Sage.Engine.Parser;
+using Sage.Engine.Runtime;
+using System.Reflection;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Sage.Engine.Transpiler;
@@ -18,6 +20,16 @@ namespace Sage.Engine.Transpiler;
 internal class ExpressionVisitor : SageParserBaseVisitor<ExpressionSyntax>
 {
     private readonly CSharpTranspiler _transpiler;
+
+    /// <summary>
+    /// The set of AMPscript function names that have a native implementation on <see cref="RuntimeContext"/>.
+    /// By convention, every AMPscript-callable method is named in all uppercase, so this is computed once by
+    /// reflecting over the public methods that follow that convention.
+    /// </summary>
+    private static readonly HashSet<string> s_nativeFunctions = new(
+        typeof(RuntimeContext).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Select(method => method.Name)
+            .Where(name => name == name.ToUpperInvariant()));
 
     public ExpressionVisitor(CSharpTranspiler transpiler)
     {
@@ -119,6 +131,16 @@ internal class ExpressionVisitor : SageParserBaseVisitor<ExpressionSyntax>
             argSyntax.Add(Argument(base.Visit(context.arguments().expression(i))));
         }
 
+        // Functions without a native implementation are routed through InvokeCustomFunction instead of being
+        // emitted as a direct call, so a missing function is a clear runtime error (patchable via
+        // custom-functions.json) rather than a C# compile failure that aborts the whole debug session.
+        string invokedMethodName = functionName;
+        if (!s_nativeFunctions.Contains(functionName))
+        {
+            invokedMethodName = nameof(RuntimeContext.InvokeCustomFunction);
+            argSyntax.Insert(0, Argument(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(functionName))));
+        }
+
         // This does not add any #line directives, since it's just an expression.
         // The invocation of the function as an ExpressionStatement adds the #line directive, since usually you want to break
         // and debug on a statement and not an expression.
@@ -130,9 +152,10 @@ internal class ExpressionVisitor : SageParserBaseVisitor<ExpressionSyntax>
                     MemberAccessExpression(
                         SyntaxKind.SimpleMemberAccessExpression,
                         IdentifierName(Runtime.RuntimeVariable),
-                        IdentifierName(functionName)))
+                        IdentifierName(invokedMethodName)))
             .WithArgumentList(ArgumentList(SeparatedList(argSyntax)));
     }
+
 
     /// <summary>
     /// Visits a comparision, such as <= >=, ==, etc.
