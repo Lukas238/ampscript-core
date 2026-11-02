@@ -75,6 +75,20 @@ or
 Hello %%FirstName%%
 ```
 
+### Preview multiple subscribers
+
+The web debugger also accepts a 1-based data row in the URL: `/1`, `/2`, etc.
+Each request reads that row from `DataExtensions/_SUBSCRIBERS.csv` next to the entry file.
+Use semicolon-separated columns with a header row; blank lines are skipped, column padding
+is trimmed, and values remain strings, including blanks and leading zeros. Headers must
+be nonempty and unique (case-insensitive).
+
+Open different numbered URLs in separate tabs to compare subscribers simultaneously.
+The selected attributes are request-local: `subscriber.json` is neither merged nor modified.
+The root `/` continues to use `subscriber.json`. Nonpositive row numbers return HTTP 400;
+missing rows/files return HTTP 404; malformed selected CSV data returns HTTP 400 with details.
+Other side effects, such as custom functions that persist DE inserts, remain shared.
+
 ## Referencing Content
 
 Content functions can reference content local on disk. The files must exist in a `Content` subdirectory of the working directory.

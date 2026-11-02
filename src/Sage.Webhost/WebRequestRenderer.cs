@@ -4,6 +4,8 @@
 // For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/Apache-2.0
 
 using Microsoft.Extensions.Options;
+using Microsoft.VisualBasic.FileIO;
+using System.Text.Json;
 using Sage.Engine.Compiler;
 using Sage.Engine.Runtime;
 using Sage.Webhost;
@@ -30,15 +32,74 @@ namespace Sage.Engine
             _config = configuration.Value;
         }
 
-        public string RenderContent(CompilationOptions inputOption)
+        public string RenderContent(CompilationOptions inputOption, int? subscriberRow = null)
         {
             try
             {
-                SubscriberContext context = null;
-                string subscriberContextFile = Path.Combine(Path.GetDirectoryName(inputOption.Content.Location), "subscriber.json");
-                if (Path.Exists(subscriberContextFile))
+                SubscriberContext? context = null;
+                string directory = Path.GetDirectoryName(inputOption.Content.Location)
+                    ?? throw new InvalidOperationException("The source file must have a parent directory.");
+                string subscriberContextFile = Path.Combine(directory, "subscriber.json");
+                if (subscriberRow.HasValue)
+                {
+                    context = LoadSubscriberRow(directory, subscriberRow.Value);
+                }
+                else if (Path.Exists(subscriberContextFile))
                 {
                     context = new SubscriberContext(File.ReadAllText(subscriberContextFile));
+                }
+
+                static SubscriberContext LoadSubscriberRow(string directory, int row)
+                {
+                    if (row < 1)
+                    {
+                        throw new BadHttpRequestException("Subscriber row must be a positive, 1-based number.");
+                    }
+
+                    string path = Path.Combine(directory, "DataExtensions", "_SUBSCRIBERS.csv");
+                    if (!File.Exists(path))
+                    {
+                        throw new BadHttpRequestException("DataExtensions/_SUBSCRIBERS.csv was not found.", StatusCodes.Status404NotFound);
+                    }
+
+                    using var parser = new TextFieldParser(path)
+                    {
+                        TextFieldType = FieldType.Delimited,
+                        TrimWhiteSpace = true,
+                        CommentTokens = Array.Empty<string>()
+                    };
+                    parser.SetDelimiters(";");
+
+                    try
+                    {
+                        string[]? headers = parser.ReadFields();
+                        if (headers == null || headers.Any(string.IsNullOrWhiteSpace) ||
+                            headers.Distinct(StringComparer.OrdinalIgnoreCase).Count() != headers.Length)
+                        {
+                            throw new BadHttpRequestException("Subscriber CSV headers must be nonempty and unique.");
+                        }
+
+                        for (int index = 1; !parser.EndOfData; index++)
+                        {
+                            string[]? values = parser.ReadFields();
+                            if (values == null || values.Length != headers.Length)
+                            {
+                                throw new BadHttpRequestException($"Subscriber CSV row {index} does not match the header column count.");
+                            }
+
+                            if (index == row)
+                            {
+                                var attributes = headers.Zip(values).ToDictionary(pair => pair.First, pair => pair.Second);
+                                return new SubscriberContext(JsonSerializer.Serialize(attributes));
+                            }
+                        }
+                    }
+                    catch (MalformedLineException exception)
+                    {
+                        throw new BadHttpRequestException($"Malformed subscriber CSV at line {exception.LineNumber}.", exception);
+                    }
+
+                    throw new BadHttpRequestException($"Subscriber row {row} does not exist.", StatusCodes.Status404NotFound);
                 }
 
                 return _renderer.Render(inputOption, context);

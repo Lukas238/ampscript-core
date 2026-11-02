@@ -17,7 +17,7 @@ namespace Sage.Engine.Compiler
     {
         public RuntimeContextDebugView(RuntimeContext original)
         {
-            this.Variables = original.GetVariables().ToList();
+            this.Variables = original.GetVariables().OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase).ToList();
             this.ContentStackFrames = original.GetStackFrames().ToList();
         }
 

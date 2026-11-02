@@ -34,6 +34,25 @@ app.MapGet("/", () =>
         requestScope.ServiceProvider.GetRequiredService<WebRequestRenderer>().RenderContent(options), "text/html", Encoding.UTF8);
 });
 
+app.MapGet("/{subscriberRow:int}", (int subscriberRow) =>
+{
+    using IServiceScope requestScope = app.Services.CreateScope();
+    CompilationOptions options =
+        requestScope.ServiceProvider.GetRequiredService<IOptionsSnapshot<CompilationOptions>>().Value;
+
+    try
+    {
+        return Results.Content(
+            requestScope.ServiceProvider.GetRequiredService<WebRequestRenderer>().RenderContent(options, subscriberRow),
+            "text/html", Encoding.UTF8);
+    }
+    catch (BadHttpRequestException exception)
+    {
+        app.Logger.LogWarning(exception, "Cannot render subscriber row {SubscriberRow}", subscriberRow);
+        return Results.Problem(detail: exception.Message, statusCode: exception.StatusCode);
+    }
+});
+
 app.Run();
 
 return 0;
