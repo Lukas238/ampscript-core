@@ -32,7 +32,10 @@ namespace Sage.Engine
             _config = configuration.Value;
         }
 
-        public string RenderContent(CompilationOptions inputOption, int? subscriberRow = null)
+        public string RenderContent(
+            CompilationOptions inputOption,
+            int? subscriberRow = null,
+            IReadOnlyDictionary<string, string>? queryOverrides = null)
         {
             try
             {
@@ -47,6 +50,16 @@ namespace Sage.Engine
                 else if (Path.Exists(subscriberContextFile))
                 {
                     context = new SubscriberContext(File.ReadAllText(subscriberContextFile));
+                }
+
+                if (queryOverrides is { Count: > 0 })
+                {
+                    Dictionary<string, string> attributes = context?.GetAttributes() ?? new Dictionary<string, string>();
+                    foreach (KeyValuePair<string, string> pair in queryOverrides)
+                    {
+                        attributes[pair.Key] = pair.Value;
+                    }
+                    context = new SubscriberContext(JsonSerializer.Serialize(attributes));
                 }
 
                 static SubscriberContext LoadSubscriberRow(string directory, int row)

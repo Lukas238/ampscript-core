@@ -23,7 +23,7 @@ if (extractor != null)
     extractor.Extract();
 }
 
-app.MapGet("/", () =>
+app.MapGet("/", (HttpRequest request) =>
 {
     using IServiceScope requestScope = app.Services.CreateScope();
 
@@ -31,10 +31,11 @@ app.MapGet("/", () =>
         requestScope.ServiceProvider.GetRequiredService<IOptionsSnapshot<CompilationOptions>>().Value;
 
     return Results.Content(
-        requestScope.ServiceProvider.GetRequiredService<WebRequestRenderer>().RenderContent(options), "text/html", Encoding.UTF8);
+        requestScope.ServiceProvider.GetRequiredService<WebRequestRenderer>()
+            .RenderContent(options, queryOverrides: ToAttributeOverrides(request)), "text/html", Encoding.UTF8);
 });
 
-app.MapGet("/{subscriberRow:int}", (int subscriberRow) =>
+app.MapGet("/{subscriberRow:int}", (int subscriberRow, HttpRequest request) =>
 {
     using IServiceScope requestScope = app.Services.CreateScope();
     CompilationOptions options =
@@ -43,7 +44,8 @@ app.MapGet("/{subscriberRow:int}", (int subscriberRow) =>
     try
     {
         return Results.Content(
-            requestScope.ServiceProvider.GetRequiredService<WebRequestRenderer>().RenderContent(options, subscriberRow),
+            requestScope.ServiceProvider.GetRequiredService<WebRequestRenderer>()
+                .RenderContent(options, subscriberRow, ToAttributeOverrides(request)),
             "text/html", Encoding.UTF8);
     }
     catch (BadHttpRequestException exception)
@@ -52,6 +54,12 @@ app.MapGet("/{subscriberRow:int}", (int subscriberRow) =>
         return Results.Problem(detail: exception.Message, statusCode: exception.StatusCode);
     }
 });
+
+// Lets a preview URL override/add subscriber attributes ad hoc, e.g. "?LANGUAGE_CODE=PT", without editing _SUBSCRIBERS.csv.
+static Dictionary<string, string>? ToAttributeOverrides(HttpRequest request) =>
+    request.Query.Count == 0
+        ? null
+        : request.Query.ToDictionary(pair => pair.Key, pair => pair.Value.ToString());
 
 app.Run();
 
