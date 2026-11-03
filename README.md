@@ -52,7 +52,7 @@ A browser window should appear with the example running. From here - you can mak
 ## Subscriber Attributes
 
 Subscriber attributes `%%Foo%%`/`[Foo]` are the per-recipient values a real send would personalize with
-(first name, loyalty level, language, etc). Three ways to supply them, from simplest to most flexible:
+(first name, plan tier, language, etc). Three ways to supply them, from simplest to most flexible:
 
 1. one subscriber in `subscriber.json`
 2. many subscribers in `_SUBSCRIBERS.csv`, switched by URL
@@ -90,12 +90,12 @@ one row per subscriber. Headers must be nonempty and unique (case-insensitive); 
 column padding is trimmed; values stay strings, including blanks and leading zeros.
 
 ```csv
-CustomerId;FirstName;LoyaltyLevel
-1;Donnie;Silver
-2;Ana;Gold
+SubscriberKey;FirstName;City
+1;Jamie;Austin
+2;Casey;Seattle
 ```
 
-Request a 1-based row number in the URL - `/1` renders Donnie, `/2` renders Ana - instead of editing
+Request a 1-based row number in the URL - `/1` renders Jamie, `/2` renders Casey - instead of editing
 `subscriber.json`. Open each numbered URL in its own tab to compare subscribers side by side. This is
 request-local: `subscriber.json` is never read, merged, or modified by it, and the root `/` still uses
 `subscriber.json` as before. Nonpositive row numbers return HTTP 400; missing rows/files return HTTP 404;
@@ -109,8 +109,8 @@ preview URL - root or numbered:
 
 ```text
 /?LanguageCode=FR
-/2?LoyaltyLevel=Platinum
-/2?LoyaltyLevel=Platinum&LanguageCode=FR
+/2?City=Chicago
+/2?City=Chicago&LanguageCode=FR
 ```
 
 Each `key=value` pair overrides (or adds) that attribute for this request only, on top of whatever
@@ -132,25 +132,25 @@ Example, if you have a file at `Content\EmbeddedContent.ampscript`, then you can
 
 Data Extension support is provided through CSV files on disk. The files must exist in a `DataExtensions` subdirectory of the working directory. The CSV file must contain headers which represent the columns.
 
-Example, if you have a file at `DataExtensions\Loyalty.csv`, then it will use this CSV file as the data extension.
+Example, if you have a file at `DataExtensions\Contacts.csv`, then it will use this CSV file as the data extension.
 
-`DataExtensions\Loyalty.csv`
+`DataExtensions\Contacts.csv`
 
 ```csv
-EmailAddress,SubscriberKey,FirstName,LastName,LoyaltyLevel
-donnie@northerntrailoutfitters.com,1,Donnie,Stanton,Silver
+EmailAddress,SubscriberKey,FirstName,LastName,City
+jamie@example.com,1,Jamie,Rivera,Austin
 ```
 
 `Index.ampscript`
 
 ```ampscript
-Hello %%=LOOKUP("Loyalty", "FirstName", "emailAddress", "donnie@northerntrailoutfitters.com")=%%
+Hello %%=LOOKUP("Contacts", "FirstName", "emailAddress", "jamie@example.com")=%%
 ```
 
 Outputs:
 
 ```ampscript
-Hello Donnie
+Hello Jamie
 ```
 
 ## Custom Functions
