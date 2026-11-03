@@ -51,11 +51,16 @@ A browser window should appear with the example running. From here - you can mak
 
 ## Subscriber Attributes
 
-Subscriber attributes `%%Foo%%`/`[Foo]` are supported through a JSON file named `subscriber.json` in the working directory.
+Subscriber attributes `%%Foo%%`/`[Foo]` are the per-recipient values a real send would personalize with
+(first name, loyalty level, language, etc). Three ways to supply them, from simplest to most flexible:
 
-Supported within the JSON file is a key/value pair of the attribute name and value.
+1. one subscriber in `subscriber.json`
+2. many subscribers in `_SUBSCRIBERS.csv`, switched by URL
+3. one-off overrides via URL query string, layered on top of either
 
-Example:
+### 1. One subscriber: `subscriber.json`
+
+Put a JSON file named `subscriber.json` in the working directory, with one key/value pair per attribute:
 
 ```json
 {
@@ -63,7 +68,7 @@ Example:
 }
 ```
 
-The attribute values can be referenced via:
+Reference it the same way a real send would:
 
 ```ampscript
 %%[
@@ -75,19 +80,43 @@ or
 Hello %%FirstName%%
 ```
 
-### Preview multiple subscribers
+Opening the debugger's root URL (`/`) renders using this file.
 
-The web debugger also accepts a 1-based data row in the URL: `/1`, `/2`, etc.
-Each request reads that row from `DataExtensions/_SUBSCRIBERS.csv` next to the entry file.
-Use semicolon-separated columns with a header row; blank lines are skipped, column padding
-is trimmed, and values remain strings, including blanks and leading zeros. Headers must
-be nonempty and unique (case-insensitive).
+### 2. Many subscribers: `_SUBSCRIBERS.csv`
 
-Open different numbered URLs in separate tabs to compare subscribers simultaneously.
-The selected attributes are request-local: `subscriber.json` is neither merged nor modified.
-The root `/` continues to use `subscriber.json`. Nonpositive row numbers return HTTP 400;
-missing rows/files return HTTP 404; malformed selected CSV data returns HTTP 400 with details.
-Other side effects, such as custom functions that persist DE inserts, remain shared.
+To test more than one subscriber without juggling multiple `subscriber.json` files, add a
+`DataExtensions/_SUBSCRIBERS.csv` next to the entry file: semicolon-separated columns, a header row,
+one row per subscriber. Headers must be nonempty and unique (case-insensitive); blank lines are skipped;
+column padding is trimmed; values stay strings, including blanks and leading zeros.
+
+```csv
+CustomerId;FirstName;LoyaltyLevel
+1;Donnie;Silver
+2;Ana;Gold
+```
+
+Request a 1-based row number in the URL - `/1` renders Donnie, `/2` renders Ana - instead of editing
+`subscriber.json`. Open each numbered URL in its own tab to compare subscribers side by side. This is
+request-local: `subscriber.json` is never read, merged, or modified by it, and the root `/` still uses
+`subscriber.json` as before. Nonpositive row numbers return HTTP 400; missing rows/files return HTTP 404;
+malformed CSV data returns HTTP 400 with details. Other side effects, such as custom functions that persist
+DE inserts, still apply across requests regardless of which row you're previewing.
+
+### 3. One-off overrides: URL query string
+
+To check a single attribute change without adding a CSV row for it, add it to the query string of any
+preview URL - root or numbered:
+
+```text
+/?LanguageCode=FR
+/2?LoyaltyLevel=Platinum
+/2?LoyaltyLevel=Platinum&LanguageCode=FR
+```
+
+Each `key=value` pair overrides (or adds) that attribute for this request only, on top of whatever
+`subscriber.json` or CSV row was already selected; nothing is written back to disk. This is the fastest way
+to spot-check copy across many values of one attribute (every language code, every tier, a boundary number)
+without maintaining a CSV row for each.
 
 ## Referencing Content
 
