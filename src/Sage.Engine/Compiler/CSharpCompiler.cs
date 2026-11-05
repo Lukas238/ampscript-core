@@ -4,6 +4,7 @@
 // For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/Apache-2.0
 
 using System.Reflection;
+using System.Security.Cryptography;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -20,9 +21,20 @@ namespace Sage.Engine.Compiler
 {
     /// <summary>
     /// A class that compiles AMPscript source code into C# and optionally will execute it.
+    /// Includes built-in caching to avoid recompilation of unchanged source code.
     /// </summary>
-    internal static class CSharpCompiler
+    public static class CSharpCompiler
     {
+        private static ICompilationCache? _cache;
+
+        /// <summary>
+        /// Sets the compilation cache to use. Call once during application startup.
+        /// </summary>
+        public static void SetCache(ICompilationCache cache)
+        {
+            _cache = cache;
+        }
+
         public static string CompileAndExecute(CompilationOptions options, RuntimeContext context, out CompileResult result)
         {
             result = GenerateAssemblyFromSource(options);
@@ -38,12 +50,22 @@ namespace Sage.Engine.Compiler
         }
 
         /// <summary>
-        /// Generates C# code from the provided AMPscript
+        /// Generates C# code from the provided AMPscript, WITH CACHING
         /// </summary>
         public static CompileResult GenerateAssemblyFromSource(CompilationOptions options)
         {
             string code = options.Content.GetTextReader().ReadToEnd();
 
+            // Step 1: Compute hash of source code for cache key
+            string sourceCodeHash = ComputeSourceCodeHash(code);
+
+            // Step 2: Check cache first
+            if (_cache?.TryGet(sourceCodeHash, options.GeneratedMethodName) is CompileResult cachedResult)
+            {
+                return cachedResult;
+            }
+
+            // Step 3: Not in cache - compile fresh
             CSharpTranspiler transpiler = CSharpTranspiler.CreateFromSource(options.Content.Location, options.GeneratedMethodName, code);
 
             CompilationUnitSyntax compilationUnit = transpiler.GenerateCode();
@@ -55,7 +77,7 @@ namespace Sage.Engine.Compiler
             (CSharpCompilation compilation, SourceText sourceText) = GenerateCompilation(options, cSharpCode);
             (EmitResult emitResult, Assembly? assembly, AssemblyLoadContext? assemblyContext) = GenerateAssembly(options, compilation, sourceText);
 
-            return new CompileResult(
+            var result = new CompileResult(
                 options.Content.Location,
                 options.GeneratedMethodName,
                 compilationUnit,
@@ -64,6 +86,11 @@ namespace Sage.Engine.Compiler
                 assembly,
                 assemblyContext,
                 cSharpCode);
+
+            // Step 4: Store in cache for future requests
+            _cache?.Set(sourceCodeHash, options.GeneratedMethodName, result);
+
+            return result;
         }
 
         /// <summary>
@@ -145,6 +172,18 @@ namespace Sage.Engine.Compiler
             }
 
             return (emitResult, null, null);
+        }
+
+        /// <summary>
+        /// Computes a SHA256 hash of the source code for use as a cache key.
+        /// </summary>
+        private static string ComputeSourceCodeHash(string sourceCode)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(sourceCode));
+                return Convert.ToBase64String(hashBytes);
+            }
         }
     }
 }

@@ -124,9 +124,23 @@ namespace Sage.Webhost.DependencyInjection
 
             services.AddInMemoryDataExtensions();
 
+            // Add caching for compilation performance improvement
+            services.AddMemoryCache(options =>
+            {
+                options.SizeLimit = 100 * 1024 * 1024; // 100 MB cache limit
+            });
+            services.AddSingleton<ICompilationCache, CompilationCache>();
+
             services.AddSageLaunchCommand(commandLineCollection);
             ServiceProvider provider = commandLineCollection.BuildServiceProvider();
             provider.GetRequiredService<LaunchCommand>().Invoke(args);
+
+            // Initialize the compiler cache
+            var compilationCache = provider.GetService<ICompilationCache>();
+            if (compilationCache != null)
+            {
+                CSharpCompiler.SetCache(compilationCache);
+            }
 
             services.AddScoped<ExceptionPageRenderer>();
             services.AddScoped<WebRequestRenderer>();
